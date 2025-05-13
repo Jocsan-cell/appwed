@@ -1,0 +1,566 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const splashScreen = document.getElementById('splash-screen');
+    const splashTextContainer = document.getElementById('splash-text');
+    const mobileContainer = document.getElementById('mobile-container');
+    const appTitle = "ADVENTURE TIME";
+    let currentSplashText = "";
+    let charIndex = 0;
+
+    function typeSplashText() {
+        if (charIndex < appTitle.length) {
+            currentSplashText += appTitle[charIndex];
+            splashTextContainer.textContent = currentSplashText;
+            charIndex++;
+            setTimeout(typeSplashText, 100);
+        }
+    }
+    typeSplashText();
+
+    setTimeout(() => {
+        splashScreen.style.display = 'none';
+        mobileContainer.style.display = 'flex';
+        loadClients();
+        renderClientList();
+    }, 3000);
+
+    let clients = [];
+    const CLIENTS_STORAGE_KEY = 'adventureTimeClients';
+    const THEME_STORAGE_KEY = 'adventureTimeTheme';
+
+    const clientListContainer = document.getElementById('client-list-container');
+    const searchResultsContainer = document.getElementById('search-results-container');
+    const searchInput = document.getElementById('search-input');
+
+    const addClientFormHome = document.getElementById('add-client-form-home');
+    // addClientFormDetailed ya no existe
+    const editClientForm = document.getElementById('edit-client-form');
+
+    const settingsModal = document.getElementById('settings-modal');
+    const editClientModal = document.getElementById('edit-client-modal');
+    const closeSettingsModalBtn = document.getElementById('close-settings-modal');
+    const closeEditModalBtn = document.getElementById('close-edit-modal');
+    const settingsIcon = document.getElementById('settings-icon');
+    const themeToggle = document.getElementById('theme-toggle');
+
+    const exportCsvButton = document.getElementById('export-csv-button');
+    const importFileElement = document.getElementById('import-file'); // ID CAMBIADO
+    const importStatus = document.getElementById('import-status');
+
+    function loadTheme() {
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        if (savedTheme) {
+            document.body.setAttribute('data-theme', savedTheme);
+            themeToggle.value = savedTheme;
+        }
+    }
+    loadTheme();
+
+    settingsIcon.addEventListener('click', () => settingsModal.style.display = 'flex');
+    closeSettingsModalBtn.addEventListener('click', () => settingsModal.style.display = 'none');
+    themeToggle.addEventListener('change', (e) => {
+        document.body.setAttribute('data-theme', e.target.value);
+        localStorage.setItem(THEME_STORAGE_KEY, e.target.value);
+    });
+    window.addEventListener('click', (event) => {
+        if (event.target === settingsModal) settingsModal.style.display = 'none';
+        if (event.target === editClientModal) editClientModal.style.display = 'none';
+    });
+
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const sections = document.querySelectorAll('.app-section');
+
+    navButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetSectionId = button.getAttribute('data-section');
+            sections.forEach(section => {
+                section.classList.remove('active-section');
+                if (section.id === targetSectionId) {
+                    section.classList.add('active-section');
+                }
+            });
+            if (targetSectionId === 'ver-vista-section') renderClientList();
+            if (targetSectionId === 'buscar-cliente-section') {
+                searchInput.value = "";
+                searchResultsContainer.innerHTML = "";
+            }
+        });
+    });
+
+    function saveClients() {
+        localStorage.setItem(CLIENTS_STORAGE_KEY, JSON.stringify(clients));
+    }
+
+    function loadClients() {
+        const storedClients = localStorage.getItem(CLIENTS_STORAGE_KEY);
+        if (storedClients) {
+            clients = JSON.parse(storedClients);
+        }
+    }
+    
+    function addClient(clientData) {
+        if (clients.some(c => c.id === clientData.id)) {
+            alert('Error: Ya existe un cliente con ese Código/ID.');
+            return false;
+        }
+        clients.push(clientData);
+        saveClients();
+        return true;
+    }
+
+    addClientFormHome.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const client = {
+            id: document.getElementById('client-id-home').value.trim(),
+            name: document.getElementById('client-name-home').value.trim(),
+            zona: document.getElementById('client-zona-home').value.trim(), // CAMBIO AQUÍ
+            phone: document.getElementById('client-phone-home').value.trim(),
+            email: '', // Email no está en el form de inicio, se puede añadir/editar luego
+            address: '' // Address no está en el form de inicio, se puede añadir/editar luego
+        };
+        if (client.id && client.name) {
+            if(addClient(client)) {
+                alert('Cliente guardado desde Inicio!');
+                addClientFormHome.reset();
+                renderClientList();
+                document.querySelector('.nav-btn[data-section="ver-vista-section"]').click();
+            }
+        } else {
+            alert('Código/ID y Nombre son obligatorios.');
+        }
+    });
+
+    // La lógica para addClientFormDetailed se elimina ya que la sección fue removida.
+
+    function renderClientList(clientArray = clients) {
+        clientListContainer.innerHTML = '';
+        if (clientArray.length === 0) {
+            clientListContainer.innerHTML = '<p>No hay clientes guardados.</p>';
+            return;
+        }
+
+        clientArray.forEach(client => {
+            const clientItem = document.createElement('div');
+            clientItem.classList.add('client-item');
+            clientItem.innerHTML = `
+                <div class="client-info">
+                    <p><strong>ID:</strong> ${client.id}</p>
+                    <p><strong>Nombre:</strong> ${client.name}</p>
+                    ${client.email ? `<p><strong>Email:</strong> ${client.email}</p>` : ''}
+                    ${client.zona ? `<p><strong>Zona:</strong> ${client.zona}</p>` : ''} <!-- CAMBIO AQUÍ -->
+                    ${client.phone ? `<p><strong>Tel:</strong> ${client.phone}</p>` : ''}
+                    ${client.address ? `<p><strong>Dir:</strong> ${client.address}</p>` : ''}
+                </div>
+                <div class="client-actions">
+                    <button class="edit-btn" data-id="${client.id}" title="Editar">✏️</button>
+                    <button class="delete-btn" data-id="${client.id}" title="Borrar">🗑️</button>
+                </div>
+            `;
+            clientListContainer.appendChild(clientItem);
+        });
+
+        document.querySelectorAll('.edit-btn').forEach(button => {
+            button.addEventListener('click', (e) => handleEditClient(e.target.closest('button').dataset.id));
+        });
+        document.querySelectorAll('.delete-btn').forEach(button => {
+            button.addEventListener('click', (e) => handleDeleteClient(e.target.closest('button').dataset.id));
+        });
+    }
+    
+    function handleEditClient(clientId) {
+        const client = clients.find(c => c.id === clientId);
+        if (client) {
+            document.getElementById('edit-client-original-id').value = client.id;
+            document.getElementById('edit-client-id').value = client.id;
+            document.getElementById('edit-client-name').value = client.name;
+            document.getElementById('edit-client-email').value = client.email || '';
+            document.getElementById('edit-client-zona').value = client.zona || ''; // CAMBIO AQUÍ
+            document.getElementById('edit-client-phone').value = client.phone || '';
+            document.getElementById('edit-client-address').value = client.address || '';
+            editClientModal.style.display = 'flex';
+        }
+    }
+
+    editClientForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const originalId = document.getElementById('edit-client-original-id').value;
+        const updatedClient = {
+            id: document.getElementById('edit-client-id').value.trim(),
+            name: document.getElementById('edit-client-name').value.trim(),
+            email: document.getElementById('edit-client-email').value.trim(),
+            zona: document.getElementById('edit-client-zona').value.trim(), // CAMBIO AQUÍ
+            phone: document.getElementById('edit-client-phone').value.trim(),
+            address: document.getElementById('edit-client-address').value.trim()
+        };
+
+        if (!updatedClient.id || !updatedClient.name) {
+            alert('Código/ID y Nombre son obligatorios.');
+            return;
+        }
+        
+        if (originalId !== updatedClient.id && clients.some(c => c.id === updatedClient.id)) {
+            alert('Error: Ya existe otro cliente con ese nuevo Código/ID.');
+            return;
+        }
+
+        const clientIndex = clients.findIndex(c => c.id === originalId);
+        if (clientIndex > -1) {
+            clients[clientIndex] = updatedClient;
+            saveClients();
+            renderClientList();
+            editClientModal.style.display = 'none';
+            alert('Cliente actualizado.');
+        }
+    });
+    closeEditModalBtn.addEventListener('click', () => editClientModal.style.display = 'none');
+
+    function handleDeleteClient(clientId) {
+        if (confirm(`¿Estás seguro de que quieres borrar al cliente con ID ${clientId}?`)) {
+            clients = clients.filter(client => client.id !== clientId);
+            saveClients();
+            renderClientList();
+            if (document.getElementById('buscar-cliente-section').classList.contains('active-section')) {
+                performSearch();
+            }
+            alert('Cliente borrado.');
+        }
+    }
+
+    searchInput.addEventListener('input', performSearch);
+
+    function performSearch() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        searchResultsContainer.innerHTML = '';
+
+        if (!searchTerm) {
+            searchResultsContainer.innerHTML = '<p>Ingresa un término para buscar.</p>';
+            return;
+        }
+
+        const results = clients.filter(client => 
+            client.name.toLowerCase().includes(searchTerm) || 
+            client.id.toLowerCase().startsWith(searchTerm) ||
+            (client.zona && client.zona.toLowerCase().includes(searchTerm)) // Opcional: buscar por zona
+        );
+
+        if (results.length === 0) {
+            searchResultsContainer.innerHTML = '<p>No se encontraron clientes.</p>';
+        } else {
+            // Reutilizar renderClientList para mostrar resultados sería más DRY,
+            // pero para mantener la estructura actual de resultados separados:
+            results.forEach(client => {
+                 const clientItem = document.createElement('div');
+                clientItem.classList.add('client-item');
+                clientItem.innerHTML = `
+                    <div class="client-info">
+                        <p><strong>ID:</strong> ${client.id}</p>
+                        <p><strong>Nombre:</strong> ${client.name}</p>
+                        ${client.email ? `<p><strong>Email:</strong> ${client.email}</p>` : ''}
+                        ${client.zona ? `<p><strong>Zona:</strong> ${client.zona}</p>` : ''}
+                        ${client.phone ? `<p><strong>Tel:</strong> ${client.phone}</p>` : ''}
+                        ${client.address ? `<p><strong>Dir:</strong> ${client.address}</p>` : ''}
+                    </div>
+                    <div class="client-actions">
+                        <button class="edit-btn" data-id="${client.id}" title="Editar">✏️</button>
+                        <button class="delete-btn" data-id="${client.id}" title="Borrar">🗑️</button>
+                    </div>
+                `;
+                searchResultsContainer.appendChild(clientItem);
+            });
+            searchResultsContainer.querySelectorAll('.edit-btn').forEach(button => {
+                button.addEventListener('click', (e) => handleEditClient(e.target.closest('button').dataset.id));
+            });
+            searchResultsContainer.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => handleDeleteClient(e.target.closest('button').dataset.id));
+            });
+        }
+    }
+
+    exportCsvButton.addEventListener('click', () => {
+        if (clients.length === 0) {
+            alert("No hay clientes para exportar.");
+            return;
+        }
+        const headers = ["id", "name", "email", "zona", "phone", "address"]; // AÑADIDO "zona"
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n";
+
+        clients.forEach(client => {
+            const row = headers.map(header => {
+                let value = client[header] || "";
+                value = String(value).replace(/"/g, '""');
+                if (String(value).includes(",")) {
+                    value = `"${value}"`;
+                }
+                return value;
+            });
+            csvContent += row.join(",") + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "adventure_time_clients.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("Datos exportados a adventure_time_clients.csv. Columnas: ID, Nombre, Email, Zona, Teléfono, Dirección.");
+    });
+
+    importFileElement.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const fileName = file.name.toLowerCase();
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const fileContent = e.target.result;
+                let importedClientsData = [];
+                let parseSuccess = false;
+
+                if (fileName.endsWith('.csv')) {
+                    try {
+                        importedClientsData = parseCSV(fileContent);
+                        parseSuccess = true;
+                    } catch (error) {
+                        importStatus.textContent = 'Error al procesar CSV: ' + error.message;
+                        alert(importStatus.textContent);
+                        console.error("Error parsing CSV:", error);
+                        importFileElement.value = '';
+                        return;
+                    }
+                } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+                    // Intentar usar SheetJS si estuviera disponible (requiere incluir la librería)
+                    if (typeof XLSX !== 'undefined') {
+                        try {
+                            const workbook = XLSX.read(fileContent, {type: 'binary'});
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            // Convertir a formato de array de objetos, esperando que las cabeceras coincidan
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                            
+                            if (jsonData.length > 0) {
+                                const headers = jsonData[0].map(h => String(h).trim().toLowerCase());
+                                const idIndex = headers.indexOf("id");
+                                const nameIndex = headers.indexOf("name");
+                                const emailIndex = headers.indexOf("email");
+                                const zonaIndex = headers.indexOf("zona");
+                                const phoneIndex = headers.indexOf("phone");
+                                const addressIndex = headers.indexOf("address");
+
+                                if (idIndex === -1 || nameIndex === -1) {
+                                    throw new Error("El archivo Excel debe contener columnas 'id' y 'name'.");
+                                }
+
+                                for (let i = 1; i < jsonData.length; i++) {
+                                    const row = jsonData[i];
+                                    importedClientsData.push({
+                                        id: row[idIndex] ? String(row[idIndex]).trim() : '',
+                                        name: row[nameIndex] ? String(row[nameIndex]).trim() : '',
+                                        email: emailIndex > -1 && row[emailIndex] ? String(row[emailIndex]).trim() : '',
+                                        zona: zonaIndex > -1 && row[zonaIndex] ? String(row[zonaIndex]).trim() : '',
+                                        phone: phoneIndex > -1 && row[phoneIndex] ? String(row[phoneIndex]).trim() : '',
+                                        address: addressIndex > -1 && row[addressIndex] ? String(row[addressIndex]).trim() : ''
+                                    });
+                                }
+                                parseSuccess = true;
+                                importStatus.textContent = "Archivo Excel procesado con SheetJS.";
+                            } else {
+                                throw new Error("La hoja de Excel está vacía o no se pudo leer.");
+                            }
+                        } catch (excelError) {
+                             importStatus.textContent = 'Error al procesar Excel con SheetJS: ' + excelError.message + ' Se intentará como CSV.';
+                             console.warn("Error con SheetJS, intentando como CSV:", excelError);
+                             // Fallback a tratarlo como CSV si SheetJS falla o no está
+                            try {
+                                importedClientsData = parseCSV(fileContent); // Reintentar como CSV
+                                parseSuccess = true;
+                                importStatus.textContent = "Archivo Excel leído como CSV (podría tener errores de formato).";
+                            } catch (csvError) {
+                                importStatus.textContent = 'Error al procesar archivo como CSV: ' + csvError.message;
+                                alert(importStatus.textContent);
+                                importFileElement.value = '';
+                                return;
+                            }
+                        }
+                    } else {
+                        // Si SheetJS no está, intentar como CSV y advertir
+                        alert("Para una mejor importación de Excel (.xls, .xlsx), se recomienda una librería como SheetJS (no detectada). Se intentará leer el archivo como CSV, lo que podría no funcionar correctamente para todos los archivos Excel.");
+                        try {
+                            importedClientsData = parseCSV(fileContent);
+                            parseSuccess = true;
+                            importStatus.textContent = "Archivo Excel leído como CSV (funcionalidad limitada).";
+                        } catch (csvError) {
+                             importStatus.textContent = 'Error al procesar archivo como CSV: ' + csvError.message;
+                             alert(importStatus.textContent);
+                             importFileElement.value = '';
+                             return;
+                        }
+                    }
+                } else {
+                    importStatus.textContent = 'Formato de archivo no soportado. Por favor, usa .csv, .xls, o .xlsx.';
+                    alert(importStatus.textContent);
+                    importFileElement.value = '';
+                    return;
+                }
+
+                if (parseSuccess && importedClientsData.length > 0) {
+                    let newClientsAdded = 0;
+                    importedClientsData.forEach(importedClient => {
+                        if (importedClient.id && importedClient.name) {
+                            const existingClientIndex = clients.findIndex(c => String(c.id).trim() === String(importedClient.id).trim());
+                            if (existingClientIndex === -1) {
+                                clients.push({
+                                    id: String(importedClient.id).trim(),
+                                    name: String(importedClient.name).trim(),
+                                    email: String(importedClient.email || '').trim(),
+                                    zona: String(importedClient.zona || '').trim(), // AÑADIDO "zona"
+                                    phone: String(importedClient.phone || '').trim(),
+                                    address: String(importedClient.address || '').trim()
+                                });
+                                newClientsAdded++;
+                            } else {
+                                console.warn(`Cliente con ID ${importedClient.id} ya existe. Se omitió duplicado.`);
+                            }
+                        } else {
+                            console.warn("Fila de datos importada omitida por falta de ID o Nombre:", importedClient);
+                        }
+                    });
+                    
+                    saveClients();
+                    renderClientList();
+                    const finalMessage = `${newClientsAdded} nuevos clientes importados. Se omitieron ${importedClientsData.length - newClientsAdded} por duplicados o datos incompletos. ${importStatus.textContent}`;
+                    importStatus.textContent = finalMessage;
+                    alert(finalMessage + "\nLos datos han sido trasladados a 'Ver Vista'.");
+                    document.querySelector('.nav-btn[data-section="ver-vista-section"]').click();
+
+                } else if (parseSuccess && importedClientsData.length === 0) {
+                    importStatus.textContent = 'El archivo procesado está vacío o no contiene datos de cliente válidos.';
+                    alert(importStatus.textContent);
+                }
+                importFileElement.value = ''; // Resetear
+            };
+
+            if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+                 // Para leer archivos binarios de Excel correctamente con SheetJS
+                reader.readAsBinaryString(file);
+            } else {
+                reader.readAsText(file); // Para CSV
+            }
+        }
+    });
+
+    function parseCSV(csvText) {
+        const lines = csvText.split(/\r\n|\n/);
+        if (lines.length < 1) return []; // Puede no tener cabecera si es un excel simple.
+
+        let headers = [];
+        let dataStartIndex = 0;
+
+        // Intenta detectar cabeceras (id, name son cruciales)
+        if (lines.length > 0) {
+            const potentialHeaders = lines[0].split(',').map(h => String(h).trim().toLowerCase());
+            if (potentialHeaders.includes("id") && potentialHeaders.includes("name")) {
+                headers = potentialHeaders;
+                dataStartIndex = 1;
+            } else {
+                // Si no hay cabeceras 'id' y 'name', asume un orden fijo o falla.
+                // Para este ejemplo, si no hay cabeceras, se podría asignar por posición
+                // o mejor aún, requerir cabeceras. Por ahora, lo hacemos más flexible.
+                // Si no hay cabeceras explícitas, se puede intentar inferir, o se podría
+                // alertar al usuario. Para simplificar, si no hay 'id' y 'name' en la primera
+                // línea, el parseo será menos robusto o podría fallar la validación posterior.
+                headers = potentialHeaders; // Usa la primera línea como cabecera igualmente
+                dataStartIndex = 1; // Asume que la primera línea son las cabeceras
+                if (!headers.includes("id") || !headers.includes("name")){
+                     // Si después de tomar la primera linea como cabecera, aun no se encuentran
+                     // id y name, entonces se asume que no hay cabecera y se usa un orden por defecto.
+                     // Esto es para archivos Excel muy simples sin cabecera.
+                    headers = ["id", "name", "email", "zona", "phone", "address"]; // Orden por defecto
+                    dataStartIndex = 0; // procesar desde la primera línea
+                    alert("No se detectaron cabeceras 'id' y 'name' en el archivo. Se intentará importar asumiendo el orden: id, name, email, zona, phone, address.");
+                }
+
+            }
+        }
+        
+        const headerMap = {};
+        const expectedHeaders = ["id", "name", "email", "zona", "phone", "address"];
+        headers.forEach((h, i) => {
+            const cleanedHeader = String(h).trim().toLowerCase();
+            // Solo mapea si es una cabecera conocida o si no hay cabeceras y usamos el orden por defecto
+            if (expectedHeaders.includes(cleanedHeader) || dataStartIndex === 0) {
+                 headerMap[cleanedHeader] = i; // Mapea la cabecera a su índice
+            }
+        });
+         // Si después de mapear, 'id' o 'name' siguen sin estar, es un problema.
+        if (typeof headerMap.id === 'undefined' || typeof headerMap.name === 'undefined') {
+             if (dataStartIndex !== 0) { // Si no estabamos asumiendo orden por defecto
+                throw new Error("El archivo CSV/Excel debe contener columnas 'id' y 'name' en las cabeceras, o no tener cabeceras para asumir un orden por defecto.");
+             }
+        }
+
+
+        const result = [];
+        for (let i = dataStartIndex; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.trim() === '') continue;
+
+            // Este split es muy simple. Un CSV real puede tener comas dentro de campos entrecomillados.
+            // "Doe, John", "Some Address, City", ...
+            // Para un parseo robusto de CSV, se necesitaría una lógica más compleja o una librería.
+            const values = line.split(','); 
+            
+            const client = {};
+            // Si no hay cabeceras (dataStartIndex === 0), se usa el orden de expectedHeaders
+            if (dataStartIndex === 0) {
+                client.id = values[expectedHeaders.indexOf("id")]?.trim() || '';
+                client.name = values[expectedHeaders.indexOf("name")]?.trim() || '';
+                client.email = values[expectedHeaders.indexOf("email")]?.trim() || '';
+                client.zona = values[expectedHeaders.indexOf("zona")]?.trim() || '';
+                client.phone = values[expectedHeaders.indexOf("phone")]?.trim() || '';
+                client.address = values[expectedHeaders.indexOf("address")]?.trim() || '';
+            } else { // Si hay cabeceras, se usa el headerMap
+                 client.id = values[headerMap.id]?.trim() || '';
+                 client.name = values[headerMap.name]?.trim() || '';
+                 client.email = typeof headerMap.email !== 'undefined' ? (values[headerMap.email]?.trim() || '') : '';
+                 client.zona = typeof headerMap.zona !== 'undefined' ? (values[headerMap.zona]?.trim() || '') : '';
+                 client.phone = typeof headerMap.phone !== 'undefined' ? (values[headerMap.phone]?.trim() || '') : '';
+                 client.address = typeof headerMap.address !== 'undefined' ? (values[headerMap.address]?.trim() || '') : '';
+            }
+
+
+            if (client.id && client.name) {
+                result.push(client);
+            }
+        }
+        return result;
+    }
+
+    document.getElementById('exit-btn').addEventListener('click', () => {
+        if (confirm("¿Quieres borrar todos los datos de clientes y recargar la app?")) {
+            localStorage.removeItem(CLIENTS_STORAGE_KEY);
+            clients = [];
+            renderClientList();
+            alert("Datos borrados. La app se recargará.");
+            location.reload();
+        } else if (confirm("¿Solo quieres recargar la app sin borrar datos?")) {
+             location.reload();
+        }
+    });
+
+    loadClients();
+    if (document.getElementById('inicio-section').classList.contains('active-section')) {
+        //
+    } else if (document.getElementById('ver-vista-section').classList.contains('active-section')) {
+        renderClientList();
+    }
+
+    // Nota sobre SheetJS (biblioteca para Excel)
+    if (typeof XLSX === 'undefined') {
+        console.warn("SheetJS (xlsx.full.min.js) no está cargado. La importación de archivos .xls y .xlsx tendrá funcionalidad limitada o podría no funcionar correctamente. Para una mejor experiencia, incluye la librería SheetJS.");
+        // Podrías incluso añadir un mensaje en la UI si lo deseas.
+        // const importSection = document.getElementById('export-import-section');
+        // const warningMsg = document.createElement('p');
+        // warningMsg.innerHTML = "<small style='color:orange;'>Advertencia: La importación avanzada de Excel no está disponible. Se intentará leer como CSV.</small>";
+        // importSection.appendChild(warningMsg);
+    }
+});
